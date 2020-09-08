@@ -1,0 +1,311 @@
+---
+title: "Maximum Likelihood (ML) vs. Restricted Maximum Likelihood (REML)"
+author: "Nikolay Oskolkov, SciLifeLab, NBIS Long Term Support, nikolay.oskolkov@scilifelab.se"
+date: "August 28, 2020"
+output:
+  html_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+subtitle: Computing REML from scratch in R.
+abstract: |
+  In this tutorial we will explain the concept of Restricted Maximum Likelihood (REML), why it is used and the difference between REML and the Maximum Likelihood (ML). We will derive and code REML from scratch in R using a toy data set.
+---
+
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(options(warn=-1))
+knitr::opts_knit$set(root.dir="/home/nikolay/Documents/Medium/REML/")
+```
+
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+  TeX: { equationNumbers: { autoNumber: "AMS" } }
+});
+</script>
+
+
+### Lmer Output for Toy Data Set
+
+Let us consider a model which is very simple but still keeps all necessary elements of the Linear Mixed Modelling (LMM). Suppose we have 4 data points only: 2 originating from Individual #1 and the other 2 coming from Individual #2. Further, the 4 points are spread between two conditions: untreated and treated. In other words we are planing to perform something similar to the **paired t-test** and test the significance of treatment, please see the figure below. Here 0 in the "Treat" column means "untreated" and 1 means "treated". 
+
+```{r,fig.width=10,fig.height=8}
+library("ggplot2")
+df<-data.frame(Treat=c(0,1,0,1),
+               Resp=c(10,25,3,6),
+               Ind=c(1,1,2,2))
+df
+ggplot(df, aes(x=Treat, y=Resp, color=factor(Ind), group=Ind)) + 
+  geom_point(size=3) + theme(text = element_text(size = 20)) + geom_line() + labs(color="Individual")
+```
+
+The 4 data points are not independent and therefore using a simple Ordinary Least Square (OLS) linear regression that assumes independence of data points is naive and not a good fit of the data. Hence Linear Mixed Model (LMM) is used to take into account the non-independence between the samples. Let us use LMM with **fixed effects for slopes and intercepts and random effects for intercepts** using the **lmer** function from **lme4** R package. Including random effects intercepts that account for groupping factor **Ind** (the individual ID), we will ned too use a special syntax **(1 | Ind)** for the lmer function. We will start fitting the LMM model using the Maximum Likelihood (ML) approach, for this purpose we specify **REML = FALSE**:
+
+```{r}
+library("lme4")
+summary(lmer(Resp ~ Treat + (1 | Ind), df, REML = FALSE))
+```
+
+Next, we will compare the LMM output using the Restricted Maximum Likelihood (REML) approach, for this purpose we specify **REML = TRUE**. Please note the difference in variance components of the random effects.
+
+```{r}
+library("lme4")
+summary(lmer(Resp ~ Treat + (1 | Ind), df, REML = TRUE))
+```
+
+Now let us explain the difference in the ML and REML outputs and derive REML from scratch.
+
+### LMM Derived from Maximum Likelihood (ML)
+
+Let us again have a look at the 4 data points and make some mathematical notations accounting for treatment effects, $\beta$, which is nothing else than Fixed Effects, and the block-wise structure $u$ due to the two individuals, which is actually the Random Effects contribution. We will try to express the Response coordinate **y** in terms of $\beta$ and $u$ parameters.
+
+![](Treated_Untreated_Mod3.png){ width="1000" height="650" style="display: block; margin: 0 auto" }
+<br>
+
+Here $\beta_1$ is the response of the individuals in the untreated state while $\beta_2$ is the response to the treatment. One can also say that $\beta_1$ is the mean of the untreated samples while $\beta_2$ is the mean of the treated samples. The variables $u_1$ and $u_2$ are block variables accounting for effects specific to Indiviual #1 and Individual #2, respectively. Finally, $\epsilon_{ij} \sim N(0, \sigma^2)$ is the Residual error, i.e. the error we can't model and can only try to minimize it as the goal of the Maximum Likelihood optimization problem. Therefore, we can write down the response variable $y$ as a combination of parameters $\beta$, $u$, i.e. Fixed and Random Effects, and $\epsilon$:
+
+\begin{equation}
+\label{eq:system_of_eqs}
+\begin{aligned}
+y_{11} = \beta_1 + u_1 + \epsilon_{11} \\
+y_{21} = \beta_2 + u_1 + \epsilon_{21} \\
+y_{12} = \beta_1 + u_2 + \epsilon_{12} \\
+y_{22} = \beta_2 + u_2 + \epsilon_{22}
+\end{aligned}
+\end{equation}
+
+In the general form this system of algebraic equations can be rewritten as follows:
+
+\begin{equation}
+\label{eq:index_eqs}
+\begin{aligned}
+y_{ij} = \beta_i + u_j + \epsilon_{ij}
+\end{aligned}
+\end{equation}
+
+where index i = 1,2 corresponds to treatment and j = 1,2 describes individual effects. We can also express this system of equations in the matrix form:
+
+\begin{equation}
+\label{eq:matrix_eqs}
+\begin{aligned}
+\begin{bmatrix}
+y_{11} \\
+y_{21} \\
+y_{12} \\
+y_{22}
+\end{bmatrix} = 
+\begin{bmatrix}
+1 & 0 \\
+0 & 1 \\
+1 & 0 \\
+0 & 1
+\end{bmatrix}
+\begin{bmatrix}
+\beta_1 \\
+\beta_2
+\end{bmatrix}+
+\begin{bmatrix}
+1 & 0 \\
+1 & 0 \\
+0 & 1 \\
+0 & 1
+\end{bmatrix}
+\begin{bmatrix}
+u_1 \\
+u_2
+\end{bmatrix}+
+\begin{bmatrix}
+\epsilon_{11} \\
+\epsilon_{21} \\
+\epsilon_{12} \\
+\epsilon_{22}
+\end{bmatrix}
+\end{aligned}
+\end{equation}
+
+
+Therefore we arrive to the following famous matrix form of LMM which is shown in all textbooks but not always properly explained:
+
+\begin{equation}
+\label{eq:matrix_form_eqs}
+\begin{aligned}
+
+\mathbf{Y} = \mathbf{X}\beta + \mathbf{K}u + \epsilon
+
+\end{aligned}
+\end{equation}
+
+Here $\textbf{X}$ is called the **design matrix** and $\textbf{K}$ is called the **block matrix**, it codes the relationship between the data points, i.e. whether they come from related individuals or even from the same individual like in our case. It is important to note that the treatment is modelled as a fixed effect because the levels treated-untreated exhaust all possible outcomes of the treatment. In contrast, the block-wise structure of the data is modelled as a random effect since the individuals were sampled from the population and do not correctly represent the whole population of individuals. In other words, there is an error associated with the random effects, i.e. $u_j \sim N(0,\sigma_s^2)$, while fixed affects are assumed to be error-free. The variance of **Y** can be expressed in the following form (see the derivation in the previous notebook "LMM_from_Scratch"):
+
+$$
+\mathbf{\Sigma}_y =
+\begin{bmatrix}
+\sigma_s^2+\sigma^2 & \sigma_s^2 & 0 & 0 \\
+\sigma_s^2 & \sigma_s^2+\sigma^2 & 0 & 0 \\
+0 & 0 & \sigma_s^2+\sigma^2 & \sigma_s^2 \\
+0 & 0 & \sigma_s^2 & \sigma_s^2+\sigma^2
+\end{bmatrix}
+$$
+
+Computing the variance-covariance matrix is needed for maximization of the Multivariate Gaussian distribution function with respect to parameters $\beta_1$, $\beta_2$, $\sigma_s^2$ and $\sigma^2$:
+
+$$\rm{\large L}(\large \beta_1, \beta_2, \sigma_s^2, \sigma^2) = \frac{\large 1}{\sqrt{\large 2\pi|\mathbf{\Sigma}_y|}}\rm{\large e}^{-\frac{\displaystyle \mathbf{\left(\mathbf{Y}-\mathbf{X}\beta\right)^T\Sigma}_y^{-1}\left(\mathbf{Y}-\mathbf{X}\beta\right)}{\displaystyle 2}}$$
+
+Here $\lvert\mathbf{\Sigma}_y\rvert$ denotes the determinant of the variance-covariance matrix. We see that the inverse matrix and determinant of the variance-covariance matrix are explicitly included into the Likelihood function, this is why we needed to derive how it depends on the random effects variance $\sigma_s^2$ and residual variance $\sigma^2$. Maximization of the Likelihood function is equivalent to minimization of the log-likelihood function:
+
+$$\log\left(\rm{\large L}(\large \beta_1, \beta_2, \sigma_s^2, \sigma^2)\right) = -\frac{1}{2}\log{\left(2\pi\right)} - \frac{1}{2}\log{\left(\lvert\mathbf{\Sigma}_y\rvert\right)} - \frac{1}{2}\mathbf{\left(\mathbf{Y}-\mathbf{X}\beta\right)^T\Sigma}_y^{-1}\left(\mathbf{Y}-\mathbf{X}\beta\right)$$
+
+Now if we maximize the log-likelihood with respect to parameters $\beta_1$, $\beta_2$, $\sigma_s^2$ and $\sigma^2$, we will reproduce the output of **lmer** for the case **REML=FALSE**, that simply means the Maximum Likelihood (ML) approach. This was shown in the "LMM_from_Scratch" notebook.
+
+It turns out that the variance estimated by ML, i.e. in REML = FALSE regime, is biased downwards. Why is it biased and what exactly we mean by biased variance components estimator?
+
+### Biased Variance Estimator by Maximum Likelihood (ML)
+
+To demonstrate that ML gives a iased variance estimator, let us consider a simple on-dimensional case with a variable $y = (y_1, y_2, ..., y_N)$ following the Normal distribution:
+
+$$
+L(\hat{y},\hat{\sigma}^2)=\prod_{i=1}^N{\frac{1}{\sqrt{2\pi \hat{\sigma}^2}}}\rm{\large e}^{\displaystyle -\frac{\displaystyle (y_i-\hat{y})^2}{\displaystyle 2\hat{\sigma}^2}}
+$$
+
+where $\hat{y}$ is the estimator of the mean, and $\hat{\sigma}^2$ is the estimator of the variance of the Normal distribution. To simplify further dereivations, we will work not with the likelihood $L(\hat{y},\hat{\sigma}^2)$ with a log-likelihood:
+
+$$
+\log\left(L(\hat{y},\hat{\sigma}^2)\right)=-\frac{N}{2}\log(2\pi)-\frac{N}{2}\log(\hat{\sigma}^2)-\frac{\displaystyle \sum_{i=1}^N(y_i-\hat{y})^2}{\displaystyle 2\hat{\sigma}^2}
+$$
+
+According to the Maximum Likelihood (ML) priciple we can find the estimators of the mean and variance by maximizing the likelihood, i.e .minimizing the log-likelihood function. For this purpuse, we will compute the derivatives of the log-likelihood with respect to $\hat{y}$ and $\hat{\sigma}^2$. 
+
+\begin{equation}
+\label{eq:diff_mean}
+\begin{aligned}
+
+\frac{\partial{L(\hat{y},\hat{\sigma}^2)}}{\partial\hat{y}}=\frac{\displaystyle \sum_{i=1}^N(y_i-\hat{y})}{\displaystyle 2\hat{\sigma}^2}=0\\
+\sum_{i=1}^N{y_i}-\hat{y}N=0\\
+\hat{y}=\frac{1}{N}\sum_{i=1}^N{y_i}
+
+\end{aligned}
+\end{equation}
+
+This was the famous Maximum Likelihood (ML) estimator for the mean. By analogy, we can differentiate the log-likelihood function with respect to $\hat{\sigma}^2$ and obtain the estimato for the variance:
+
+\begin{equation}
+\label{eq:diff_var}
+\begin{aligned}
+
+\frac{\partial{L(\hat{y},\hat{\sigma}^2)}}{\partial\hat{\sigma}^2}=-\frac{N}{2\hat{\sigma}^2}+\frac{1}{2(\hat{\sigma}^2)^2}\sum_{i=1}^N(y_i-\hat{y})^2=0\\
+N=\frac{1}{\hat{\sigma}^2}\sum_{i=1}^N(y_i-\hat{y})^2\\
+\hat{\sigma}^2=\frac{1}{N}\sum_{i=1}^N(y_i-\hat{y})^2
+
+\end{aligned}
+\end{equation}
+
+The estimators for mean and variance are famous equations. However, it can be shown that the estimator for the variance is **biased** because it was computed through another estimator $\hat{y}$ that might have an error while the true mean is $\mu$. What does the "biased" mean and why the variance estimator is biased? In order to demonstrate it, let us compute the expected values of the variance estimator. We will start with rearranging the equation for the variance estimator.
+
+$$
+\hat{\sigma}^2=\frac{1}{N}\sum_{i=1}^N(y_i-\hat{y})^2=\frac{1}{N}\sum_{i=1}^N\left[(y_i-\mu)-(\hat{y}-\mu)\right]^2=\frac{1}{N}\sum_{i=1}^N(y_i-\mu)^2-\frac{2}{N}\sum_{i=1}^N(y_i-\mu)(\hat{y}-\mu)+\\
++\frac{1}{N}\sum_{i=1}^N(\hat{y}-\mu)^2=\frac{1}{N}\sum_{i=1}^N(y_i-\mu)^2-\frac{2(\hat{y}-\mu)}{N}\sum_{i=1}^N(y_i-\mu)+(\hat{y}-\mu)^2
+$$
+
+Let us now express the term $\sum_{i=1}^N(y_i-\mu)$ through $\hat{y}$ by subtructing $\mu$ from both sides of the mean estimator:
+
+$$
+\hat{y}-\mu=\frac{1}{N}\sum_{i=1}^N{y_i}-\mu=\frac{1}{N}\sum_{i=1}^N{y_i}-\frac{1}{N}\sum_{i=1}^N{\mu}=\frac{1}{N}\sum_{i=1}^N{(y_i-\mu)}\\
+\Rightarrow \sum_{i=1}^N{(y_i-\mu)}=N(\hat{y}-\mu)
+$$
+
+Therefore, susbtituting the obtained expression for $\sum_{i=1}^N(y_i-\mu)$ back to the equation of the ML variance estimator, we obtain:
+
+$$
+\hat{\sigma}^2=\frac{1}{N}\sum_{i=1}^N(y_i-\mu)^2-\frac{2(\hat{y}-\mu)}{N}N(\hat{y}-\mu)+(\hat{y}-\mu)^2=\frac{1}{N}\sum_{i=1}^N(y_i-\mu)^2-(\hat{y}-\mu)^2
+$$
+
+Since we assumed that $\mu$ is a true mean, then $\sigma^2\equiv\rm{Var}(y_i)=\frac{1}{N}\sum_{i=1}^N(y_i-\mu)^2$ is the unbiased / true variance by definition. In contrast, $\hat{\sigma}^2$ is a biased variance estimator that is not equal to $\sigma^2$. To demonstrate this, let us compute the expected value of the biased variance estimator $\hat{\sigma}^2$:
+
+$$
+E[\hat{\sigma}^2]=E\left[\frac{1}{N}\sum_{i=1}^N(y_i-\mu)^2\right]-E[(\hat{y}-\mu)^2]=\sigma^2-E[(\hat{y}-\mu)^2]
+$$
+
+The second term in the expression above is actually the variance of the ML mean estimator by definition:
+
+$$
+E[(\hat{y}-\mu)^2]=\rm{Var}(\hat{y})=\rm{Var}\left(\frac{1}{N}\sum_{i=1}^N{y_i}\right)=\frac{1}{N^2}\sum_{i=1}^N{\rm{Var}(y_i)}=\frac{1}{N^2}N\sigma^2=\frac{\sigma^2}{N}
+$$
+Here we used the property of variance $\rm{Var}(aX)=a^2Var(X)$, where $a$ is a constant and $X$ is a vector of random values. Substituting the expression for $E[(\hat{y}-\mu)^2]$ to the expected values of the ML variance estimator, we obtain:
+
+$$
+E[\hat{\sigma}^2]=\sigma^2-\frac{\sigma^2}{N}=\frac{N-1}{N}\sigma^2
+$$
+We can see that the expected values of the ML variance estimator $E[\hat{\sigma}^2]$  is not equal to the true variance $\sigma^2$ but is biased downwards, i.e. ML underestimates the real variance. On the other hand the difference between real variance and ML estimated variance becomes smaller at large sample sizes. However, here we considered the simplest one-dimensional case. When $Y$ is not a vector but a mtarix, i.e. high-dimensional data, it can be shown https://people.csail.mit.edu/xiuming/docs/tutorials/reml.pdf that the previous expression takes the form:
+
+$$
+E[\hat{\sigma}^2]=\frac{N-k}{N}\sigma^2
+$$
+where $k$ is the number of dimensions in the high-dimensional space. Therefore the problem of underestimating the true variance by ML becomes especially acute, and the ML variance estimator becomes more and more bised when the number of dimensions $k$ approaches the number of samples / statistical observations $N$. Here we clearly see that in high-dimensional space the Maximum Likelihood (ML) principle works well only in the limit $k<<N$, while biased results can be found when $k\approx N$.
+
+
+### LMM Derived from Restricted Maximum Likelihood (REML)
+
+The problem with the biased variance estimator by ML appears to be due to the fact that we used an unknown mean estimator for computing the variance estimator. Instead, if we make sure that the log-likelihood function does not contain any information about the mean, wec can optimize it with respect to the varianc components and get an unbiased variance estimator. A way to get rid of the information about the mean from the log-likelihood function is to compute a marginal probability, i.e. integrate the log-likelihood over the mean. Here we are going to integrate the log-likelihood with respect to $\beta$ and get an unbiased estimate for the variance components. For this purpose, we need to compute the following integral:
+
+$$\log\left[\int\rm{\large L}(\beta, \Sigma_y)d\beta\right] = -\frac{1}{2}\log{\left(2\pi\right)} - \frac{1}{2}\log{\left(\lvert\mathbf{\Sigma}_y\rvert\right)}+\log\left[\int\rm{\large e}^{-\frac{\displaystyle \mathbf{\left(\mathbf{Y}-\mathbf{X}\beta\right)^T\Sigma}_y^{-1}\left(\mathbf{Y}-\mathbf{X}\beta\right)}{\displaystyle 2}}d\beta\right]$$
+
+To do it we will use the **saddle point** approach. In this approach, since the exponential function under the integral decreass very quickly, it is enough to compute the integral in the **minimum** of the function $f(\beta)$ in the exponent $e^{-f(\beta)}$ that will give a maximum contribution to the exponent and therefore to the integral and hence the likeliood. If we denote the exponential function in the exponent as $f(\beta)$, we can approximate it via Taylor series expansion $f(\beta)\approx f(\hat{\beta})+(1/2)(\beta-\hat{\beta})^2f''(\hat{\beta})$. Here the linear term is zero because of the extremum condition, and the Taylor series expansion is done at the point $\beta\approx\hat{\beta}$, i.e. in the proximity of the mean estimator point. Here we assume that in reality the likelihood is maximum in the true mean however the estimator $\hat{\beta}$ is not far from the true mean value so the Taylor series expansion can be performed. In our case, let us denote the function in the exponent as $f(\beta)$, then the Taylor series expansion around the ML mean estimator gives::
+
+$$
+f(\beta)=-\frac{\displaystyle \mathbf{\left(\mathbf{Y}-\mathbf{X}\beta\right)^T\Sigma}_y^{-1}\left(\mathbf{Y}-\mathbf{X}\beta\right)}{\displaystyle 2}\approx-\frac{\displaystyle \mathbf{\left(\mathbf{Y}-\mathbf{X}\hat{\beta}\right)^T\Sigma}_y^{-1}\left(\mathbf{Y}-\mathbf{X}\hat{\beta}\right)}{\displaystyle 2}-\frac{\displaystyle \mathbf{\left(\beta-\hat{\beta}\right)^TX^T\Sigma_y^{-1}X}\left(\beta-\hat{\beta}\right)}{\displaystyle 2}
+$$
+where we used that $f''(\hat{\beta})=\mathbf{X^T\Sigma_y^{-1}X}$. Therefore for the log-likelihood where the **nuisance** parameter $\beta$ was integrated out, we obtain:
+
+$$
+\log\left[\int\rm{\large L}(\beta, \Sigma_y)d\beta\right] = -\frac{1}{2}\log{\left(2\pi\right)} - \frac{1}{2}\log{\left(\lvert\mathbf{\Sigma}_y\rvert\right)}-\frac{\displaystyle \mathbf{\left(\mathbf{Y}-\mathbf{X}\hat{\beta}\right)^T\Sigma}_y^{-1}\left(\mathbf{Y}-\mathbf{X}\hat{\beta}\right)}{\displaystyle 2}+\log\left[\int\rm{\large e}^{-\frac{\displaystyle \mathbf{\left(\beta-\hat{\beta}\right)^TX^T\Sigma_y^{-1}X}\left(\beta-\hat{\beta}\right)}{\displaystyle 2}}d\beta\right]
+$$
+
+The last term represents a Gaussian integral $\int e^{-\alpha x^2/2}dx=\sqrt{2\pi/\alpha}$, therefore ignoring constant terms we get the final expression for the log-likelihood with no information about the mean estimator:
+
+$$
+\log\left[\int\rm{\large L}(\beta, \Sigma_y)d\beta\right] =- \frac{1}{2}\log{\left(\lvert\mathbf{\Sigma}_y\rvert\right)}-\frac{1}{2}\displaystyle \mathbf{\left(\mathbf{Y}-\mathbf{X}\hat{\beta}\right)^T\Sigma}_y^{-1}\left(\mathbf{Y}-\mathbf{X}\hat{\beta}\right)-\frac{1}{2}\log\left(\mathbf{|X^T\Sigma_y^{-1}X|}\right)
+$$
+where $\mathbf{|X^T\Sigma_y^{-1}X|}$ is the determinant of the product $\mathbf{X^T\Sigma_y^{-1}X}$. The first two terms are ML solution of the Linear Mixed Model (LMM). The third term is what comes from the REML approach. One can think about this additional term as a penalty in a penalized regression model, when we put a constraint on the coefficients in the linear regression model. As we saw in the previous "LMM_from_Scratch" tutorial, the first teo terms can be computed as:
+
+$$
+\lvert\mathbf{\Sigma}_y\rvert = 4\sigma_s^4 \sigma^4 + 4\sigma_s^2 \sigma_s^6 + \sigma^8\\
+\mathbf{\left(\mathbf{Y}-\mathbf{X}\beta\right)^T\Sigma}_y^{-1}\left(\mathbf{Y}-\mathbf{X}\beta\right) = \frac{1}{\sigma^2(\sigma^2+2\sigma_s^2)}\left[(y_{11}-\beta_1)^2(\sigma^2+\sigma_s^2) - 2(y_{11}-\beta_1)(y_{21}-\beta_2)\sigma_s^2 + \right. \\ \left. (y_{21}-\beta_2)^2(\sigma^2+\sigma_s^2) + (y_{12}-\beta_1)^2(\sigma^2+\sigma_s^2) - 2(y_{12}-\beta_1)(y_{22}-\beta_2)\sigma_s^2 + (y_{22}-\beta_2)^2(\sigma^2+\sigma_s^2) \right]
+$$
+
+The third term can also be analystically derived since we know both the $\mathbf{X}$ design matrix and the inverse variuance covariance matrix $\mathbf{\Sigma_y^{-1}}$. Below we present a screenshot from Maple, where it is shown that the third term takes the following simple form:
+
+![](reml_addition.png){ width="1000" height="450" style="display: block; margin: 0 auto" }
+<br>
+
+In other words the third term can be expressed as simple as:
+
+$$
+\mathbf{|X^T\Sigma_y^{-1}X|}=\frac{4}{\sigma^2(\sigma^2+2\sigma_s^2)}
+$$
+
+Therefore we can now minimize the log-likelihood functionin the Restricted Maximum Likelihood (REML) approximation, i.e. when the log-likelihood function does not contain any information about the mean $\beta$. Now everything is ready for performing numerical minimization of the log-likelihood function with respect to $\beta_1$, $\beta_2$, $\sigma_s^2$ and $\sigma^2$ in the REML approximation:
+
+```{r}
+f<-function(x)
+{
+  sigma  <-  x[1]
+  sigmas <-  x[2]
+  beta1  <-  x[3]
+  beta2  <-  x[4]
+  y11    <-  3
+  y12    <-  10
+  y21    <-  6
+  y22    <-  25
+  -(1/2)*log(4*sigmas^4*sigma^4 + 4*sigmas^2*sigma^6 + sigma^8) -(1/2)*log(4/((sigma^2)*(sigma^2+2*sigmas^2)))- (1/2)*(1/((sigma^2)*(sigma^2+2*sigmas^2)))*(((y11-beta1)^2)*(sigma^2+sigmas^2) - 2*(y11-beta1)*(y21-beta2)*(sigmas^2) + ((y21-beta2)^2)*(sigma^2+sigmas^2) + ((y12-beta1)^2)*(sigma^2+sigmas^2) - 2*(y12-beta1)*(y22-beta2)*(sigmas^2) + ((y22-beta2)^2)*(sigma^2+sigmas^2))
+}
+optim(par=c(1,1,1,1),f,method="L-BFGS-B",lower=c(1,1,1,1),upper=c(10,10,10,20),hessian = TRUE,control=list(fnscale=-1))
+```
+
+From the minimzation of the log-likelihood function we obtain $\sigma=6$ and $\sigma_s=8.155$, exactly the standard deviations that we also obtained by the **lmer** function with **REML=TRUE**.
+
+Well done, now we reproduced the Random Effects residual variance $\sigma^2$ and shared across data points variance $\sigma_s^2$ for both Maximum Likelihood (REML=FALSE) and Restricted Maximum Likelihood (REML=TRUE) approaches. And we have derived and codded it from scratch using R, well done!
