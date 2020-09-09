@@ -467,24 +467,24 @@ f(\beta)=-\frac{\displaystyle \mathbf{\left(\mathbf{Y}-\mathbf{X}\beta\right)^T\
 {
   sigma  &lt;-  x[1]
   sigmas &lt;-  x[2]
-  beta1  &lt;-  x[3]
-  beta2  &lt;-  x[4]
+  beta1  &lt;-  6.5
+  beta2  &lt;-  15.5
   y11    &lt;-  3
   y12    &lt;-  10
   y21    &lt;-  6
   y22    &lt;-  25
   -(1/2)*log(4*sigmas^4*sigma^4 + 4*sigmas^2*sigma^6 + sigma^8) -(1/2)*log(4/((sigma^2)*(sigma^2+2*sigmas^2)))- (1/2)*(1/((sigma^2)*(sigma^2+2*sigmas^2)))*(((y11-beta1)^2)*(sigma^2+sigmas^2) - 2*(y11-beta1)*(y21-beta2)*(sigmas^2) + ((y21-beta2)^2)*(sigma^2+sigmas^2) + ((y12-beta1)^2)*(sigma^2+sigmas^2) - 2*(y12-beta1)*(y22-beta2)*(sigmas^2) + ((y22-beta2)^2)*(sigma^2+sigmas^2))
 }
-optim(par=c(1,1,1,1),f,method=&quot;L-BFGS-B&quot;,lower=c(1,1,1,1),upper=c(10,10,10,20),hessian = TRUE,control=list(fnscale=-1))</code></pre>
+optim(par=c(1,1),f,method=&quot;L-BFGS-B&quot;,lower=c(1,1),upper=c(10,10),hessian = TRUE,control=list(fnscale=-1))</code></pre>
 <pre><code>## $par
-## [1]  5.999997  8.154752  6.500001 15.499999
+## [1] 6.000000 8.154753
 ## 
 ## $value
 ## [1] -6.049856
 ## 
 ## $counts
 ## function gradient 
-##       18       18 
+##       14       14 
 ## 
 ## $convergence
 ## [1] 0
@@ -493,11 +493,9 @@ optim(par=c(1,1,1,1),f,method=&quot;L-BFGS-B&quot;,lower=c(1,1,1,1),upper=c(10,1
 ## [1] &quot;CONVERGENCE: REL_REDUCTION_OF_F &lt;= FACTR*EPSMCH&quot;
 ## 
 ## $hessian
-##               [,1]          [,2]          [,3]          [,4]
-## [1,] -5.807664e-02 -6.852504e-03  1.598721e-08 -1.609823e-08
-## [2,] -6.852504e-03 -1.862683e-02 -1.110223e-10 -1.110223e-10
-## [3,]  1.598721e-08 -1.110223e-10 -3.369497e-02  2.186064e-02
-## [4,] -1.609823e-08 -1.110223e-10  2.186064e-02 -3.369497e-02</code></pre>
+##              [,1]         [,2]
+## [1,] -0.058076483 -0.006852494
+## [2,] -0.006852494 -0.018626799</code></pre>
 <p>From the minimzation of the log-likelihood function we obtain <span class="math inline">\(\sigma=6\)</span> and <span class="math inline">\(\sigma_s=8.155\)</span>, exactly the standard deviations that we also obtained by the <strong>lmer</strong> function with <strong>REML=TRUE</strong>.</p>
 <p>Well done, now we reproduced the Random Effects residual variance <span class="math inline">\(\sigma^2\)</span> and shared across data points variance <span class="math inline">\(\sigma_s^2\)</span> for both Maximum Likelihood (REML=FALSE) and Restricted Maximum Likelihood (REML=TRUE) approaches. And we have derived and codded it from scratch using R, well done!</p>
 </div>

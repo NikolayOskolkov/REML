@@ -295,15 +295,15 @@ f<-function(x)
 {
   sigma  <-  x[1]
   sigmas <-  x[2]
-  beta1  <-  x[3]
-  beta2  <-  x[4]
+  beta1  <-  6.5
+  beta2  <-  15.5
   y11    <-  3
   y12    <-  10
   y21    <-  6
   y22    <-  25
   -(1/2)*log(4*sigmas^4*sigma^4 + 4*sigmas^2*sigma^6 + sigma^8) -(1/2)*log(4/((sigma^2)*(sigma^2+2*sigmas^2)))- (1/2)*(1/((sigma^2)*(sigma^2+2*sigmas^2)))*(((y11-beta1)^2)*(sigma^2+sigmas^2) - 2*(y11-beta1)*(y21-beta2)*(sigmas^2) + ((y21-beta2)^2)*(sigma^2+sigmas^2) + ((y12-beta1)^2)*(sigma^2+sigmas^2) - 2*(y12-beta1)*(y22-beta2)*(sigmas^2) + ((y22-beta2)^2)*(sigma^2+sigmas^2))
 }
-optim(par=c(1,1,1,1),f,method="L-BFGS-B",lower=c(1,1,1,1),upper=c(10,10,10,20),hessian = TRUE,control=list(fnscale=-1))
+optim(par=c(1,1),f,method="L-BFGS-B",lower=c(1,1),upper=c(10,10),hessian = TRUE,control=list(fnscale=-1))
 ```
 
 From the minimzation of the log-likelihood function we obtain $\sigma=6$ and $\sigma_s=8.155$, exactly the standard deviations that we also obtained by the **lmer** function with **REML=TRUE**.
